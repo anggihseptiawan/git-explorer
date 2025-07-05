@@ -1,10 +1,10 @@
-# GitHub Explorer
+# Git Explorer
 
-A modern web application for exploring GitHub users and their repositories with a sleek dark theme interface.
+A modern web application for exploring GitHub users and their repositories with a sleek interface.
 
 ## 🌟 Project Overview
 
-GitHub Explorer allows you to search for GitHub users and dive deep into their profiles and repositories. Built with modern web technologies, it provides an intuitive interface to discover developers and explore their open-source contributions.
+Git Explorer allows you to search for GitHub users and dive deep into their profiles and repositories. Built with modern web technologies, it provides an intuitive interface to discover developers and explore their open-source contributions.
 
 ### ✨ Features
 
@@ -61,6 +61,7 @@ The built files will be generated in the `dist` directory.
 - **React 19** - Modern React with hooks and functional components
 - **TypeScript** - Type-safe JavaScript for better development experience
 - **Vite** - Fast build tool and development server
+- **Vitest** - Modern testing library
 
 ### UI & Styling
 
