@@ -12,7 +12,6 @@ export const tryCatch = async <T>(promise: Promise<T>): Promise<Result<T>> => {
     const errorMessage =
       (error as AxiosError<{ message: string }>).response?.data.message ||
       "Unknown Error!"
-    console.log(error)
     return [null, errorMessage]
   }
 }
