@@ -27,8 +27,8 @@ Git Explorer allows you to search for GitHub users and dive deep into their prof
 1. **Clone the repository**
 
    ```bash
-   git clone <GIT_URL>
-   cd <PROJECT_NAME>
+   git clone https://github.com/anggihseptiawan/git-explorer.git
+   cd git-explorer
    ```
 
 2. **Install dependencies**
