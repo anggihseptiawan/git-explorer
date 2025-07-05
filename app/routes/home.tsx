@@ -22,16 +22,17 @@ export function meta({}: Route.MetaArgs) {
 export async function loader({ request }: Route.LoaderArgs) {
   const { searchParams } = new URL(request.url)
   const user = searchParams.get("user")
-  const [users, error] = await tryCatch<
-    UserList,
-    AxiosError<{ message: string }>
-  >(http.get(`search/users?q=${user}&per_page=5`).then((r) => r.data))
+  if (!user) return { user: "", users: null, error: null }
 
-  return { users, error }
+  const [users, error] = await tryCatch<UserList>(
+    http.get(`search/users?q=${user}&per_page=5`).then((r) => r.data)
+  )
+  return { user, users, error }
 }
 
 export default function Home({ loaderData }: Route.ComponentProps) {
   const navigation = useNavigation()
+
   return (
     <>
       <header className="px-4 py-6 mb-6">
@@ -52,13 +53,14 @@ export default function Home({ loaderData }: Route.ComponentProps) {
               placeholder="Find a user"
               className="pl-11 py-6 absolute inset-0"
               name="user"
+              defaultValue={loaderData.user || ""}
             />
             <Button
               type="submit"
               className="absolute right-1 top-[7px] cursor-pointer"
-              disabled={navigation.state === "submitting"}
+              disabled={navigation.state === "loading"}
             >
-              {navigation.state === "submitting" ? "Searching..." : "Search"}
+              {navigation.state === "loading" ? "Searching..." : "Search"}
             </Button>
           </Form>
           {loaderData.error && (
@@ -72,7 +74,6 @@ export default function Home({ loaderData }: Route.ComponentProps) {
             <Card
               key={user.id}
               className="transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/20 group"
-              // onClick={() => handleUserClick(user.login)}
             >
               <CardContent className="px-4 text-center">
                 <Avatar className="h-20 w-20 mx-auto mb-4 ring-2 transition-all">

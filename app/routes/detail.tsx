@@ -10,6 +10,7 @@ import {
   Star,
   Users,
 } from "lucide-react"
+import { useNavigate } from "react-router"
 import { Alert, AlertDescription } from "~/components/ui/alert"
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar"
 import { Badge } from "~/components/ui/badge"
@@ -19,16 +20,26 @@ import type { Repositories, UserDetail } from "~/types/api"
 import { http } from "~/utils/http"
 import { tryCatch } from "~/utils/try-catch"
 import type { Route } from "./+types/detail"
-import { useNavigate } from "react-router"
+import { useState } from "react"
+import { formatDate } from "~/utils/format-date"
+import { getLanguageColor } from "~/utils/get-language-color"
+import axios from "axios"
+import { toast } from "sonner"
+
+export function meta({ params }: Route.MetaArgs) {
+  return [
+    { title: `Git Explorer | ${params.username}` },
+    { name: "description", content: "Welcome to Git Explorer!" },
+  ]
+}
 
 export async function loader({ params }: Route.LoaderArgs) {
-  const userPromise = tryCatch<UserDetail, AxiosError<{ message: string }>>(
+  const userPromise = tryCatch<UserDetail>(
     http.get(`users/${params.username}`).then((r) => r.data)
   )
-  const repoPromise = tryCatch<Repositories[], AxiosError<{ message: string }>>(
-    http
-      .get(`users/${params.username}/repos?sort=updated&per_page=10`)
-      .then((r) => r.data)
+  const endpoint = `users/${params.username}/repos?sort=updated&page=1&per_page=15`
+  const repoPromise = tryCatch<Repositories[]>(
+    http.get(endpoint).then((r) => r.data)
   )
 
   const [[user, userError], [repositories, repositoriesError]] =
@@ -39,34 +50,49 @@ export async function loader({ params }: Route.LoaderArgs) {
     user,
     repositories,
     errors: Array.from(new Set(errors)),
+    username: params.username,
   }
+}
+
+type PaginationState = {
+  currentPage: number
+  perPage: number
+  loading: "idle" | "next" | "previous"
 }
 
 export default function Page({ loaderData }: Route.ComponentProps) {
   const navigate = useNavigate()
-  const getLanguageColor = (language: string) => {
-    const colors: { [key: string]: string } = {
-      JavaScript: "bg-yellow-500",
-      TypeScript: "bg-blue-500",
-      Python: "bg-green-500",
-      HTML: "bg-red-500",
-      CSS: "bg-blue-400",
-    }
-    return colors[language] || "bg-gray-500"
-  }
+  const [repositories, setRepositories] = useState(loaderData.repositories)
+  const [paginationState, setPaginationState] = useState<PaginationState>({
+    currentPage: 1,
+    perPage: 15,
+    loading: "idle",
+  })
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
+  async function handlePageChange(goto: "next" | "previous") {
+    const { currentPage, perPage } = paginationState
+    const targetPage = goto === "next" ? currentPage + 1 : currentPage - 1
+    const endpoint = `users/${loaderData.username}/repos?sort=updated&page=${targetPage}&per_page=${perPage}`
+
+    setPaginationState((prev) => ({ ...prev, loading: goto }))
+    const [repositories, error] = await tryCatch<Repositories[]>(
+      axios
+        .get("/api/pagination", { headers: { endpoint } })
+        .then((r) => r.data)
+    )
+    if (error) toast(error)
+    setPaginationState((prev) => ({
+      ...prev,
+      currentPage: targetPage,
+      loading: "idle",
+    }))
+    setRepositories(repositories)
   }
 
   return (
     <main className="max-w-6xl mx-auto mb-12 p-4">
       {!!loaderData.errors.length && (
-        <Alert variant="destructive" className="mb-4">
+        <Alert variant="destructive" className="border-red-500 mb-4">
           <AlertDescription>
             <ul>
               {loaderData.errors.map((error, idx) => (
@@ -108,7 +134,7 @@ export default function Page({ loaderData }: Route.ComponentProps) {
               </div>
 
               {loaderData.user?.bio && (
-                <p className="text-lg text-gray-100 mb-4">
+                <p className="text-lg text-gray-300 mb-4">
                   {loaderData.user?.bio}
                 </p>
               )}
@@ -116,40 +142,59 @@ export default function Page({ loaderData }: Route.ComponentProps) {
               <div className="flex flex-wrap gap-6 text-sm">
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4" />
-                  <span>{loaderData.user?.followers} followers</span>
+                  <span>
+                    {Number(loaderData.user?.followers || 0).toLocaleString()}{" "}
+                    followers
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4" />
-                  <span>{loaderData.user?.following} following</span>
+                  <span>
+                    {Number(loaderData.user?.following || 0).toLocaleString()}{" "}
+                    following
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Book className="h-4 w-4" />
-                  <span>{loaderData.user?.public_repos} repositories</span>
+                  <span>
+                    {Number(
+                      loaderData.user?.public_repos || 0
+                    ).toLocaleString()}{" "}
+                    repositories
+                  </span>
                 </div>
                 {loaderData.user?.location && (
                   <div className="flex items-center gap-2">
                     <MapPin className="h-4 w-4" />
-                    <span>{loaderData.user?.location}</span>
+                    <span>
+                      {loaderData.user?.location === "undefined"
+                        ? "-"
+                        : loaderData.user.location}
+                    </span>
                   </div>
                 )}
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4" />
                   <span>
-                    Joined {formatDate(loaderData.user?.created_at || "")}
+                    Joined{" "}
+                    {loaderData.user?.created_at
+                      ? formatDate(loaderData.user?.created_at)
+                      : "-"}
                   </span>
                 </div>
               </div>
             </div>
 
             <div className="flex flex-col gap-2">
-              <Button
-                variant="secondary"
-                className="bg-white/20 hover:bg-white/30 text-white"
-                onClick={() => window.open(loaderData.user?.html_url, "_blank")}
-              >
-                <Github className="h-4 w-4 mr-2" />
-                View Profile
-              </Button>
+              <a href={loaderData.user?.html_url || "#"} target="_blank">
+                <Button
+                  variant="secondary"
+                  className="cursor-pointer bg-white/20 hover:bg-white/30 text-white"
+                >
+                  <Github className="h-4 w-4 mr-1" />
+                  View Profile
+                </Button>
+              </a>
               {loaderData.user?.blog && (
                 <a
                   href={
@@ -159,8 +204,11 @@ export default function Page({ loaderData }: Route.ComponentProps) {
                   }
                   target="_blank"
                 >
-                  <Button variant="outline" className="text-muted">
-                    <LinkIcon className="h-4 w-4 mr-2" />
+                  <Button
+                    variant="outline"
+                    className="cursor-pointer text-black w-full"
+                  >
+                    <LinkIcon className="h-4 w-4 mr-1" />
                     Website
                   </Button>
                 </a>
@@ -171,18 +219,18 @@ export default function Page({ loaderData }: Route.ComponentProps) {
       </Card>
 
       {/* Repositories */}
-      {loaderData.repositories?.length && (
+      {!!repositories?.length ? (
         <div>
           <div className="flex items-center gap-3 mb-8">
             <Book className="h-6 w-6 text-blue-400" />
             <h3 className="text-2xl font-bold">Recent Repositories</h3>
             <Badge variant="secondary" className="bg-blue-600 text-white">
-              {loaderData.repositories?.length}
+              {repositories?.length}
             </Badge>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {loaderData.repositories?.map((repo) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+            {repositories?.map((repo) => (
               <Card
                 key={repo.id}
                 className="bg-gray-800 border-gray-700 hover:border-blue-500 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/20 group"
@@ -192,14 +240,15 @@ export default function Page({ loaderData }: Route.ComponentProps) {
                     <h4 className="text-lg font-semibold text-blue-400">
                       {repo.name}
                     </h4>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-gray-400 hover:text-white p-1"
-                      onClick={() => window.open(repo.html_url, "_blank")}
-                    >
-                      <Github className="h-4 w-4" />
-                    </Button>
+                    <a href={repo.html_url} target="_blank">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="cursor-pointer text-gray-400 p-1"
+                      >
+                        <Github className="h-4 w-4" />
+                      </Button>
+                    </a>
                   </div>
 
                   {repo.description && (
@@ -265,7 +314,30 @@ export default function Page({ loaderData }: Route.ComponentProps) {
               </Card>
             ))}
           </div>
+          <div className="flex justify-end gap-2 mt-6">
+            <Button
+              variant="outline"
+              className="cursor-pointer"
+              onClick={() => handlePageChange("previous")}
+              disabled={paginationState.currentPage === 1}
+            >
+              {paginationState.loading === "previous"
+                ? "Loading.."
+                : "Previous"}
+            </Button>
+            <Button
+              variant="outline"
+              className="cursor-pointer"
+              onClick={() => handlePageChange("next")}
+            >
+              {paginationState.loading === "next" ? "Loading.." : "Next"}
+            </Button>
+          </div>
         </div>
+      ) : (
+        <Alert>
+          <AlertDescription>No repositories found!</AlertDescription>
+        </Alert>
       )}
     </main>
   )
